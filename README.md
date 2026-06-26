@@ -48,7 +48,7 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("your-username/your-repo-name", build_vignettes = TRUE)
 ```
 
-## How does our framework support GBIF and its mission?
+## 3. How does our framework support GBIF and its mission?
 Our framework addresses all priority areas of GBIF’s 2023-2027 Strategic Framework:
 - Rather than serving solely as evidence of species occurrence, GBIF occurrence records become standardized evidence of ecosystem occurrences, opening completely new applications in ecosystem mapping, Earth Observation, ecosystem accounting, and biodiversity monitoring (<b>Priority Area 1</b>)
 - By enabling the production of mapping-grade ecosystem reference data, it addresses a critical bottleneck for monitoring ecosystem extent under the Kunming-Montreal Global Biodiversity Framework and SEEA-EA. In doing so, it strengthens GBIF’s relevance to environmental reporting, natural capital accounting, and evidence-based decision-making, helping the platform target and engage with a wider range of stakeholders and supporting (<b>Priority Area 2</b>).
