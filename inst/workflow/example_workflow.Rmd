@@ -58,8 +58,6 @@ niter = 100 # number of sub-sample iterations
 pkgs = c("readr","nicheROVER","clusterSim","terra","plyr")
 for (p in pkgs) install.packages(p)
 
-install.packages("GlobES_0.1.1.tar.gz", method="source")
-
 # load dependencies
 for (p in c("sp2eco",pkgs)) require(p, character.only=T, quietly=T)
 

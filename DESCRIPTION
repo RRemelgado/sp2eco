@@ -1,11 +1,13 @@
 Package: sp2eco
 Type: Package
-Title: Global EcoSystem (GlobES) tools
+Title: A general framework for generating reference data for ecosystem mapping
 Version: 0.1.1
-Authors@R: c(
-    person(given="anonymous", family="anonymous", 
-    role=c("aut", "cre"), email="anonymous"))
+Authors@R: 
+    person("Jane", "Doe", 
+           email = "jane.doe@example.com", 
+           role = c("aut", "cre"))
 Description: Functions for generating ecosystem occurrence records from species observation records.
+maintainer: anonymous
 License: GPL-3
 Encoding: UTF-8
 RoxygenNote: 7.3.3
