@@ -52,7 +52,7 @@ if (!requireNamespace("rmarkdown", quietly = TRUE)) install.packages("rmarkdown"
 remotes::install_github("RRemelgado/sp2eco")
 
 # download example data
-download.file("https://zenodo.org/records/18567004/files/example_data.zip", "example_data.zip", mode="wb")
+download.file("[https://zenodo.org/records/18567004/files/example_data.zip](https://zenodo.org/records/18567004/files/example_data.zip?download=1)", "example_data.zip", mode="wb")
 unzip("example_data.zip")
 
 # make copy of notebook
