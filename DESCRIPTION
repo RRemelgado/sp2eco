@@ -1,0 +1,31 @@
+Package: sp2eco
+Type: Package
+Title: A general framework for generating reference data for ecosystem mapping
+Version: 0.1.1
+Authors@R: 
+    person("Jane", "Doe", 
+           email = "jane.doe@example.com", 
+           role = c("aut", "cre"))
+Description: Functions for generating ecosystem occurrence records from species observation records.
+maintainer: anonymous
+License: GPL-3
+Encoding: UTF-8
+RoxygenNote: 7.3.3
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.0)
+Suggests: 
+    duckdb,
+    duckdbfs,
+    DBI,
+    LaF,
+    readr,
+Imports: 
+    terra,
+    CoordinateCleaner,
+    utils,
+    graphics,
+    dampack,
+    checkmate,
+    rnaturalearth,
+    plyr
