@@ -1,27 +1,29 @@
 Package: sp2eco
 Type: Package
-Title: Deriving ecological classes from species-occurrence data.
-Version: 0.1.0
+Title: Global EcoSystem (GlobES) tools
+Version: 0.1.1
 Authors@R: c(
-    person(
-      given="Ruben", family="Remelgado", role=c("aut", "cre"), 
-      email="ruben.remelgado@uni-bonn.de", 
-      comment=c(ORCID="0000-0002-9871-5703"))
-    )
-Maintainer: rubem.remelgado@bonn.de
-Description: General framework for derived reference data on ecogical
-    classes, such as those distinguished in ecosystem classification
-    schemes, from opportunisitc species-occurrence data.
-License: GPL >= 3
+    person(given="anonymous", family="anonymous", 
+    role=c("aut", "cre"), email="anonymous"))
+Description: Functions for generating ecosystem occurrence records from species observation records.
+License: GPL-3
 Encoding: UTF-8
-LazyData: true
-Imports: optparse, taxize, readr, rgbif, yaml, DBI, ddply, 
-  sf, plyr, countrycode, CoordinateCleaner, rredlist, yaml, 
-  geosphere, extrafont, ggplot2, spatstat.utils, zen4R
+RoxygenNote: 7.3.3
 Roxygen: list(markdown = TRUE)
 Depends:
-    R (>= 4.3)
+    R (>= 4.0)
 Suggests: 
-    knitr,
-    quarto
-VignetteBuilder: quarto
+    duckdb,
+    duckdbfs,
+    DBI,
+    LaF,
+    readr,
+Imports: 
+    terra,
+    CoordinateCleaner,
+    utils,
+    graphics,
+    dampack,
+    checkmate,
+    rnaturalearth,
+    plyr
