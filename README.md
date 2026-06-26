@@ -33,9 +33,12 @@
 
 In the following section, we guide you through the use of our framework to resolve these issues, supported by practical examples.   
 
-## 2. Setup
-<p aling="justify">
-To better ilustrate the application of our framework, we will first install the R package <i></i>sp2eco</p>i>, which we provide with this repository. This can be done as following:
+## 2. Setup 🔄
+To better ilustrate the application of our framework and its functionalities, we will do as following:
+  1. Install the R package <i></i>sp2eco</p>i>, the engine of our framework, and
+  2. Obtain needed auxiliary data
+
+The code below performs these steps for you. The only thing you require is to change *working_directory* to a location in your system. Note that the code downloads a file zip-file from Zenodo. This file contains a standardized folder structure that includes example data and a vigette with a practical example that is deployed automatically. 
 
 ```r
 # Install prerequisites if needed
@@ -45,65 +48,11 @@ if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
 remotes::install_github("your-username/your-repo-name", build_vignettes = TRUE)
 ```
 
+## How does our framework support GBIF and its mission?
+Our framework addresses all priority areas of GBIF’s 2023-2027 Strategic Framework:
+- Rather than serving solely as evidence of species occurrence, GBIF occurrence records become standardized evidence of ecosystem occurrences, opening completely new applications in ecosystem mapping, Earth Observation, ecosystem accounting, and biodiversity monitoring (<b>Priority Area 1</b>)
+- By enabling the production of mapping-grade ecosystem reference data, it addresses a critical bottleneck for monitoring ecosystem extent under the Kunming-Montreal Global Biodiversity Framework and SEEA-EA. In doing so, it strengthens GBIF’s relevance to environmental reporting, natural capital accounting, and evidence-based decision-making, helping the platform target and engage with a wider range of stakeholders and supporting (<b>Priority Area 2</b>).
+- The quality-control filters included in our workflow contribute to advancing data-quality standards, and the efficient identification and resolution of errors (<b>Priority Area 4</b>).
 
-  
-  Our framework follows a quality-assurance workflow controlling for <b>i)</b> spatial misalignments, and <b>ii)</b> labeling uncertainties. 
-<p align="justified">
- To better understand this procedure, please continue below to section 2. install the needed software and how to obtain the required data, and refer you to dedicated vignette      
-</p>
-
-### How well does our solution perform?
-<p align="justified">
-  We evaluated the framework by comparing ecosystem-specific environmental niches inferred from the resulting reference data with those derived from independent ecosystem observations. Across multiple combinations of filtering and weighting procedures, these experiments demonstrated that combining complementary quality-assurance steps is critical for producing mapping-grade ecosystem reference data.
-</p>
-  
-
-**[Package Name]** provides both the programmatic tools and a fully documented case-study vignette to solve this issue. It uses package-bundled example data combined with live external data streams to demonstrate a turn-key, reproducible workflow.
-
-### Value to the GBIF Network
-* **Innovation:** [How does your package improve on existing methods?]
-* **Repeatability:** The entire workflow is packaged as a built-in vignette that compiles seamlessly on any machine.
-* **Open Science:** Simplifies complex biodiversity data manipulation into reproducible steps.
-
----
-
-## ⚙️ Installation
-Judges can install the package engine directly from this GitHub repository. Ensure you request the vignette build during installation.
-
-
-### System Dependencies
-* **R Version:** >= 4.1.0
-* **Core Dependencies:** `rgbif`, [list 1-2 other critical packages here]
-
----
-
-## 🔄 Running the Reproducible Workflow
-
-The complete workflow entry is self-contained within the package vignette. 
-
-### Step 1: Open the Vignette
-Once installed, run the following command in RStudio to view the complete case-study, code execution steps, and scientific narrative:
-
-```r
-library(yourPackageName)
-
-# Open the interactive HTML workflow document
-vignette("workflow_name", package = "yourPackageName")
-```
-
-### Data Sourcing & Replication Details
-* **Internal Data:** The pipeline initializes using the package's built-in reference dataset (`data(example_data_name)`).
-* **External Data:** The workflow automatically pings external endpoints via `rgbif` to download live, real-time occurrence records to complete the analysis.
-
----
-
-## 📊 Expected Outputs & Visuals
-
-When you execute the code blocks inside the vignette, the pipeline generates:
-* **[Output 1]:** A cleaned, standardized mapping format.
-* **[Output 2]:** An analytical summary map or graph. *(Tip: Drop a small markdown image snippet or screenshot of your best plot right here to catch the judges' eyes immediately).*
-
----
-
-## 📄 License
+##  License 📄
 This project is licensed under the [MIT / GPL-3] License - see the `LICENSE` file for details.
