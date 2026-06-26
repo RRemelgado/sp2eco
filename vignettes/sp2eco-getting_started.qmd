@@ -1,0 +1,663 @@
+---
+title: "sp2eco - Getting started"
+vignette: >
+  %\VignetteIndexEntry{Getting Started with sp2eco}
+  %\VignetteEngine{quarto::html}
+  %\VignetteEncoding{UTF-8}
+format: html
+---
+
+```{r}
+#| label: setup
+library(sp2eco)
+```
+
+## 1. Introduction
+<p align="justify">
+The folder in which this notebook was included contains the data and code that 
+are required to execute this example. Notably, the source code for **GlobES**, 
+and R package containing the functions required to execute the workflow. In 
+addition, the following folder structure is given:
+<li><b>input</b>. Provides example input data required to run this example.</li> 
+<li><b>output</b>. Intended to preserve generated outputs.</li>
+<li><b>info</b>. Includes files with key information guiding our analysis, such as 
+species names and their range map identifiers, species-habitat associations and 
+elevation ranges, and a listing of all ecosystem types, and their thematic groups
+and land cover classes.</li>
+As an example, we will here apply our workflow to derive ecosystem occurrences for 
+Mediterranean scrub using species observations from the Global Biodiversity Information 
+Facility (GBIF). The focal ecosystem type is described in the habitat typology of the 
+IUCN Red List of Species, which serves as basis for globally-applicable species threat 
+assessments (<a href="https://www.iucnredlist.org/resources/habitat-classification-scheme">see here for details</a>). 
+The code below defines required arguments, installs package dependencies, and loads needed information files.
+</p>
+
+```{r}
+# arguments ----
+#-----------------------------------------------------------------------------#
+# target resolution
+map_res = 0.00833
+
+# class identifier of Mediterranean Shrubland
+cid = "0308"
+
+# estimate decay rate value for 2-10 habitat associations
+# NOTE: 2-10 is maximum number at which a weight of 0.01 is given
+lambda = sapply(2:10, function(d) 1/(d-1)*log(0.01/1), USE.NAMES=F)
+
+# Niche Rover parameters (used in sensitivity analysis)
+nsamples = 1000 # number of MCMC draws
+nreps = 10 # number of metrics to derive
+niter = 100 # number of sub-sample iterations
+
+# install/load data packages ----
+#-----------------------------------------------------------------------------#
+
+# list of packages required (except GlobES)
+pkgs = c("readr","nicheROVER","clusterSim","terra","plyr")
+for (p in pkgs) install.packages(p)
+
+install.packages("GlobES_0.1.1.tar.gz", method="source")
+
+# load dependencies
+for (p in c("GlobES",pkgs)) require(p, character.only=T, quietly=T)
+
+# load information files ----
+#-----------------------------------------------------------------------------#
+
+# information file on the IUCN typology
+typology = read_csv(file.path("info", "iucn_typology.csv"), show_col_types=F)
+
+# species habitat associations
+habitat = read_csv(file.path("info", "iucn_habitat.csv"), show_col_types=F)
+
+# target species list
+target = read_csv(file.path("info", "iucn_species.csv"), show_col_types=F)
+
+# elevation ranges
+elev_ranges = read_csv(file.path("info", "iucn_elevation.csv"), show_col_types=F)
+```
+
+## 2. Methods
+<p align="justify">
+This demonstration is organized in two major groups, as per the description 
+of our framework in the main manuscript. First, we apply tests controlling 
+for errors in reported coordinate locations (2.1, same as in the manuscript). 
+Second, we estimate ecosystem occurrences probabilities regionally, and use 
+those estimates to compute parameters for a Dirichlet conjugate prior distribution. 
+(section 2.2). These parameters are then used to update local likelihoods of a 
+derived ecosystem occurrence being correctly labeled. Furthermore, entropy-based 
+thresholds are inferred from the probability maps to filter ecosystem occurrence 
+probabilities (2.3). To demonstrate this workflow, the following data are provided:
+</p>
+
+```{r, eval=F}
+# candidate GBIF observations for Mediterranean shrubland
+obs = read_csv(file.path("input", "spObs", "spObs-gbif.csv"), show_col_types=F)
+
+# Digital Elevation Model (DEM)
+elevation = rast(file.path("input","dem.tif"))
+
+# land cover map
+landcover = rast(file.path("input", "GLAD1k", "landCover-short_1km.tif"))
+```
+
+<p align="justify>
+Note that the provided data include range maps that already rasterized, and a 
+spatial resolution of 2-degrees. The originals cannot be shared because their 
+user agreement prevents redistribution. However, these can be directly downloaded 
+from the website of the <a href="https://www.iucnredlist.org/">IUCN Red List of Species</a>.
+</p>
+<p align="justify">
+Due to the large data volume required to reproduce our showcase examples, the 
+provided range map data account only for species inhabiting forest ecosystems. 
+To then demonstrate how species observations are derived, we focus on Mediterranean 
+shrubland and a spatial resolution of 1-km resolution. However, only sections 
+2.1 and 2.2 (the key section demonstrating our workflow) is fully executable. 
+This is because section 2.3 (i.e., sensitivity analysis) requires more data to 
+fulfill all filtering scenarios, as well as the processing of additional ecosystem types.
+</p>
+
+## 2.1. Location filters
+
+```{r}
+# setup analysis ----
+#-----------------------------------------------------------------------------#
+
+# focal species
+species = unique(obs$species)
+
+# obtain range identifiers for each species
+rid = target$range_id[match(species,target$scientificname)]
+
+# construct path to range maps of focal species
+g_ranges = file.path("input", "rangeMap_mask", paste0(rid, ".tif"))
+
+# reduce focus to species with range maps
+ind = which(file.exists(g_ranges))
+g_ranges = rast(g_ranges[ind])
+species = species[ind]
+
+# name file path vector
+names(g_ranges) = species
+
+# isolate elevation ranges of each species
+e_ranges = elev_ranges[match(species,elev_ranges$scientificName),]
+e_ranges = lapply(1:nrow(e_ranges), function(i) unlist(e_ranges[i,2:3]))
+names(e_ranges) = species
+
+# apply tests ----
+#-----------------------------------------------------------------------------#
+
+flag = location_filter(
+  
+  # observation coordinates
+  cbind(obs$decimallongitude,obs$decimallatitude),
+  
+  # coordinate uncertainty
+  obs$coordinateuncertaintyinmeters, 
+  
+  # names of the observed species
+  obs$species, 
+  
+  # iso-2 code of country where observation was made
+  obs$countrycode,
+  
+  # target pixel resolution
+  map_res,
+  
+  # named paths to range map masks of each unique species  
+  g_ranges, 
+  
+  # elevation ranges of each observed species
+  e_ranges,
+  
+  # elevation raster
+  elevation, 
+  
+  # assumes that g_ranges is a stack of range maps
+  method="range"
+
+)
+
+# add metadata to observations
+obs$cell = flag$cell # cell in global grid with res. of 0.00833-degrees
+obs$coordinateuncertaintyinmeters = flag$precision ## updated precision
+obs$resolution = flag$resolution # resolution linked to 'cell' (not needed here)
+
+# derive candidate ecosystem occurrences ----
+#-----------------------------------------------------------------------------#
+
+# exclude invalid observations
+obs = obs[flag$flag,]
+
+# isolate potential Mediterranean Shrubland occurrences
+sp = unique(habitat$scientificName[which(habitat$class_id == cid)])
+obs = obs[which(obs$species %in% sp),]
+
+# infer level of habitat specialization for each species
+nh = ddply(habitat[habitat$scientificName %in% obs$species,], .(scientificName), 
+           summarize, n=length(unique(class_id)))
+
+# assign habitat count to each species observation
+obs$n_habitats = nh$n[match(obs$species,nh$scientificName)]
+
+# reduce observations to unique cell-year combinations
+obs = ddply(obs, .(cell,year), summarize, 
+            
+            # mean coordinates
+            x=mean(decimallongitude), y=mean(decimallatitude), 
+            
+            # mean precision
+            coordinateuncertainty=mean(coordinateuncertaintyinmeters),
+            
+            # name of the species from which the observations was obtained
+            species=species[which.min(n_habitats)], 
+            
+            # number of species observation
+            n_species=length(unique(species)),
+            
+            # highest degree of habitat specialization
+            n_habitats=min(n_habitats))
+
+# test land cover condition ----
+#-----------------------------------------------------------------------------#
+
+e = extract(landcover, obs[,c("x","y")], ID=F)[,1]
+obs$lc_check = e > 0
+```
+
+## 2.2. Controlling for thematic uncertainties
+
+First, we map ecosystem occurrence probabilities at a coarse spatial scale.
+```{r, eval=F}
+# prepare arguments ----
+#-----------------------------------------------------------------------------#
+
+# list range maps encoded with the number of habitat associations
+files = list.files(file.path("input", "rangeMap_habitat"), ".tif", full.names=T)
+
+# extract class code from file names
+eco = do.call(rbind, strsplit(basename(files), "_"))[,1]
+
+# derive per-pixel Dirichlet distribution parameters (alpha) ----
+#-----------------------------------------------------------------------------#
+
+# map probabilities for each lambda 
+p_path = file.path("output", "occ_probabilities")
+dir.create(p_path)
+alpha = range_prior(files, eco, lambda, p_path, verbose=F)
+
+# compute total (used to re-normalized updated values)
+total_alpha = app(alpha, sum)
+
+# update local votes ----
+#-----------------------------------------------------------------------------#
+
+# derive weighted votes
+w_votes = weighted_sum(obs$n_habitats, lambda)
+
+alpha = extract(alpha[[which(names(alpha) == cid)]], obs[,c("x","y")], ID=F)[,1]
+total_alpha = extract(total_alpha, obs[,c("x","y")], ID=F)[,1]
+
+# lower confidence interval
+obs$lower_ci = ((w_votes$mean-w_votes$var) + alpha) /
+  ((w_votes$mean-w_votes$var) + total_alpha)
+
+# mean
+obs$p_mean = (w_votes$mean + alpha) / (w_votes$mean + total_alpha)
+
+# higher confidence interval
+obs$upper_ci = ((w_votes$mean+w_votes$var) + alpha) /
+  ((w_votes$mean+w_votes$var) + total_alpha)
+
+# record number of specialists per cell ----
+#-----------------------------------------------------------------------------#
+
+# list range maps encoded with the number of habitat associations
+files = list.files(file.path("input", "rangeMap_habitat"), 
+                   "0308_.*.tif", full.names=T)
+
+# sum specialist ranges
+r = app(rast(files), function(x) sum(x == 1))
+
+# test if number of regional specialist occurrences is > 1
+obs$specialist_check = extract(r, obs[,c("x","y")], ID=F)[,1] > 1
+```
+
+<p align="justify">
+Second, for each mean probability map, we estimate entropy-based thresholds to 
+filter low-probability areas. With this threshold, we can identify a final set 
+of occurrence records for Mediterranean scrub. This is obtained by imposing the 
+various quality criteria tested in our framework The preserved species observations 
+must: i) overlap supporting land cover, ii) match or exceed the regional probability 
+threshold, and iii) occur in a region where at least two habitat specialists 
+within a 2-degree cell.
+</p>
+</p>
+
+```{r, eval=F}
+# path to output raster
+p_map = rast(file.path(p_path, "0308_probability_mean.tif"))
+
+# estimate threshold 
+e_threshold = entropy_threshold(p_map)
+
+# detect observations matching condition
+obs$p_check = FALSE
+obs$p_check[which(extract(p_map, obs[,c("x","y")], ID=F)[,1] > e_threshold)] = TRUE
+
+# save candidates (to apply sensitivity analysis)
+write_csv(obs, file.path("output", "0308-candidate_occurrences.csv"))
+
+# conditions to be applied to isolate valid observations
+obs = obs[which(obs$lc_check & obs$p_check & obs$specialist_check),]
+
+# save final set of observations
+write_csv(obs, file.path("output", "0308-processed_occurrences.csv"))
+```
+
+## 2.3. Sensitivity analysis
+
+<p align="justify">
+To evaluate the performance of our framework, we conducted two sets of tests. 
+First, we computed the probability of encountering derived ecosystem occurrences 
+within the bioclimatic niche of reference data on the target ecosystems. Second, 
+we evaluated the separability of ecosystem occurrence records fo different types. 
+We evaluated these metrics for the following filtering options:
+<ul>
+<li><b>N - </b>No filtering</li>
+<li><b>S - </b>Number of specialists within a grid cell.</li>
+<li><b>L - </b>Land cover support.</li>
+<li><b>T - </b>Entropy-based thematic uncertainty filter</li>
+<li><b>So - </b>Observations derived from habitat specialists only.</li>
+</ul>
+We additionally considered combinations of these filters (i.e., S+L, S+T, L+T, S+L+T, So+S+L+T).
+</p>
+<p align="justify">
+To test for bioclimatic niche overlaps, we obtained reference data from the 
+sPlot-Open database. The code below shows how reference data were obtained. 
+Note that the code generates reference data for all ecosystem types evaluated 
+in this study. However, in subsequent demonstrations, we will again focus on 
+Mediterranean scrhub, leveraging the output of the previous analyses. The 
+code below was used to generate reference data, but samples are already 
+in the **input** folder.
+</p>
+
+```{r, eval=F}
+# download source data of splot
+url = "https://idata.idiv.de/MMM/ShowMultimediaData/getFile?path=Datasets%255c3474%255csPlotOpen_header%283%29.txt"
+iname = file.path("input", "sPlot", "sPlot-source.txt")
+download.file(url, iname, mode="wb")
+
+# load splot data
+splot = read_delim(iname, show_col_types=F)
+
+# filters to apply to the splot data for each class
+targets = list(
+  
+  bf=list(id="0101", biome="Boreal zone",cover="Forest"),
+  
+  tf=list(id="0104", biome="Temperate midlatitudes",cover="Forest"),
+  
+  df=list(id="0105", biome="Tropics with summer rain",cover="Forest"),
+  
+  ms=list(id="0308", biome="Subtropics with winter rain",cover="Shrubland"),
+  
+  tg=list(id="0404",biome="Temperate midlatitudes",cover="Grassland"))
+
+# derive samples
+for (target in targets) {
+  i = which((splot$Biome %in% target$biome) & (splot[[target$cover]]))
+  tmp = splot[i,c("Longitude","Latitude")]
+  colnames(tmp) = c("x","y")
+  oname = file.path("input", "sPlot", paste0("sPlot-", target$id, ".csv"))
+  write.csv(tmp, oname, row.names=F)
+}
+
+```
+
+<p align="justify">
+We additionally used bioclimatic variables from the CHELSA dataset. These 
+data, which consist of 19 bioclimatic variables, were reduced to the 5-leading 
+components based on a Principal Components Analysis (PCA) to control for 
+multi-colinearity. The leading components accounted for >= 95% fo the variance. 
+The code for generating the PCA model is shown below. The code below is used 
+for demonstration purposes. An the **output** folder a reduced bioclim dataset 
+for the region occupied by the species occurrences used in this example is 
+provided, together with a PCA model generated from the original global data. 
+</p>
+
+```{r, eval=F}
+iname = file.path("output", "bioclim_pca.tif")
+
+if (file.exists(iname)) bioclim = rast(iname) else {
+  
+  # load bioclimatic data
+  files = list.files(file.path("input", "CHELSA"), ".tif", full.names=T)
+  
+  # load (or download) bioclim variables
+  bioclim = tryCatch(rast(files), error=function(e) return(NULL))
+  if (is.null(bioclim)) {
+    
+    files = read.csv(file.path("input", "CHELSA", "CHELSA_source.csv"), header=F)[,1]
+    
+    pb = txtProgressBar(min=1, max=length(files), style=3)
+    for (i in 1:length(files)) {
+      o = file.path("input", "CHELSA", basename(files[i]))
+      download.file(files[i], o, mode="wb")
+      setTxtProgressBar(pb, i)
+    }
+    
+    bioclim = rast(files)
+    
+  }
+  
+  # derive 10,000 random samples
+  xy = spatSample(bioclim, 10000)
+
+  # apply and save PCA model
+  pca_model = prcomp(xy, scale.=T)
+  saveRDS(pca_model, file=file.path("ouput", "pca_model.rds"))
+  
+  # number of components to use in subsequent analyses (>=95%)
+  nc = which.min(abs(0.95-summary(pca_model)$importance[3,]))[[1]]
+  
+  # we can now apply the PCA model to the bioclim data
+  bioclim = predict(pca_model, bioclim)
+  writeRaster(bioclim, file.path("output", "bioclim_pca.tif"))
+  
+}
+```
+
+<p align="justify">
+Below, the code for generating the sensitivity analysis samples. Note that we 
+reduce our focus to unique combinations on pixels-observations with respect to 
+the resolution of the bioclimatic dataset (i.e., 1-km). The goal is to prevent 
+biases due to pseudo-replication. While the bioclimatic data does not change in 
+time, and has a fixed resolution, the derive ecosystem occurrences may cluster 
+in single pixels (when derived at finer resolutions than 1-km), those sample 
+pixels may be sampled in multiple years.
+</p>
+
+```{r, eval=F}
+# base path for the sensitivity analyses
+o_path = file.path("output", "sensitivity")
+dir.create(o_path, showWarnings=F)
+
+# names of scenarios (to label samples)
+groups = c("N", "S", "L", "T", "S+L", "S+T", "L+T", "S+L+T", "So", "So+S+L+T")
+
+# obtain required data ----
+#-----------------------------------------------------------------------------#
+
+# read reference samples
+reference_xy = read.csv(file.path("input", "sPlot", "sPlot-0308.csv"))
+reference_xy$cell = cellFromXY(bioclim, reference_xy[,c("x","y")])
+reference_xy = reference_xy[!duplicated(reference_xy$cell),]
+
+# read target samples
+target_xy = read.csv(file.path("output", "0308-candidate_occurrences.csv"))
+target_xy = target_xy[complete.cases(target_xy),]
+target_xy$cell = cellFromXY(bioclim, target_xy[,c("x","y")])
+
+## summarize observations for each filtering scenario ----
+##==========================================================================#
+
+ind = list(
+
+  # no filtering
+  1:nrow(target_xy),
+
+  # habitat specialization filter (S)
+  which(target_xy$specialist_check),
+
+  # land cover filter (L)
+  which(target_xy$lc_check),
+
+  # regional probability filter (T)
+  which(target_xy$p_check),
+
+  # land cover + specialization filter ( L + S)
+  which((target_xy$lc_check) & target_xy$specialist_check),
+
+  # specialization + regional probability filter (S + T)
+  which(target_xy$specialist_check & target_xy$p_check),
+
+  # land cover + regional probability filter (L + T)
+  which(target_xy$lc_check & target_xy$p_check),
+
+  # land cover + specialization + regional probability (S + L + T)
+  which(target_xy$lc_check & target_xy$specialist_check & target_xy$p_check),
+
+  # focus on specialist species (So)
+  which(target_xy$n_habitats == 1),
+
+  # combined filters (So + S + L + T)
+  which(target_xy$lc_check & target_xy$specialist_check & 
+          target_xy$p_check & (target_xy$n_habitats == 1))
+
+)
+
+# reduce observations to unique entries for each scenario ----
+#-----------------------------------------------------------------------------#
+
+# extract samples for each scenario
+ols = list()
+for (i in 1:length(ind)) {
+
+  # source samples for scenario
+  si = ind[[i]]
+  if (length(si) == 0) next
+  
+  ols[[i]] = target_xy[si[!duplicated(target_xy$cell[si])],c("x","y")]
+  ols[[i]]$group = groups[i]
+
+  # estimate clustering weights (deals with spatial autocorr.; section 2.3.3)
+  cell = cellFromXY(bioclim, as.matrix(ols[[i]][,c("x","y")]))
+  ncell = ddply(data.frame(x=cell), .(x), summarize, n=length(x))
+  wi = match(cell,ncell$x)
+  ols[[i]]$weight = ncell$n[wi]
+  ols[[i]]$weight = 1 / ols[[i]]$weight^2
+
+}
+
+# save samples
+target_xy = do.call(rbind, ols)
+rm(ols)
+
+## extract and export bio-climatic data ----
+##==========================================================================#
+
+reference = extract(bioclim, reference_xy[,c("x","y")], ID=F)
+reference = reference[complete.cases(reference),]
+oname = file.path(o_path, paste0("0308_reference.csv"))
+write.csv(reference, oname, row.names=F)
+
+target = extract(bioclim, target_xy[,c("x","y")], ID=F)
+ind = which(complete.cases(target))
+target = target[ind,]
+
+oname = file.path(o_path, paste0("0308_target.csv"))
+write.csv(target, oname, row.names=F)
+
+oname = file.path(o_path, paste0("0308_target_xy.csv"))
+write.csv(target_xy, oname, row.names=F)
+
+# number of subsamples to use
+nss = nrow(reference)
+
+```
+
+### 2.3.1. Niche overlap analysis
+```{r, eval=F}
+# iterate through each scenario
+gls = list()
+pb = pb = txtProgressBar(min=1, max=length(groups), style=3)
+for (i in 1:length(groups)) {
+
+  # index of samples for scenario i
+  ind = which(target_xy$group == groups[i])
+  
+  # skip if samples are insuficient
+  # NOTE: # include to account for the small sample size of the example
+  # (several 10s of thousands used in main manuscript)
+  if (length(ind) < nss) next
+
+  # define sub-sample size
+  if (length(ind) > nrow(reference)) n = nrow(reference)
+
+  # perform multiple runs to control for uncertainty
+  p_ls = list()
+  for (r in 1:niter) {
+
+    # draw random sample
+    ii = sample(ind, nss, prob=target_xy$weight[ind])
+
+    # estimate niche overlap
+    data = list(reference=niw.post(nsamples=ns, reference), 
+                target=niw.post(nsamples=ns, target))
+    no = overlap(data, nreps, nsamples, alpha=.95, norm.redraw=T)[2,1,]
+
+    # preserve test results
+    p_ls[[r]] = data.frame(group=groups[i],iteration=r, n=length(ind), p=no)
+
+  }
+
+  gls[[i]] = do.call(rbind, p_ls)
+  setTxtProgressBar(pb, i)
+
+}
+
+close(pb)
+
+# compile analyses
+overlap = do.call(rbind, gls)
+
+# return mean/sd for each scenario
+stats = ddply(overlap, .(group), summarize, mean=mean(p), sd=sd(p))
+```
+
+### 2.3.2 Separability analysis
+Note that the following code assumes that samples were generated for all the classes in the 'ecosystem' variable.
+```{r}
+
+# number of sub-sampling iterations
+niter = 1000
+
+# target ecosystems (this assumes more were processed)
+ecosystems = c("0101","0104","0308","0105")
+
+# load required data  ----
+#-----------------------------------------------------------------------------#
+
+# load metadata on samples
+files = file.path(o_path, "samples", ecosystems, "_target_xy.csv")
+obs = do.call(rbind, lapply(1:length(files), function(i) {
+  tmp = read_csv(files[i], show_col_types=F)
+  tmp$cid = i
+  return(tmp)
+}))
+
+# load data required to apply the PCA model
+files = paste0(o_path, "samples", ecosystems, "_target.csv")
+pca = do.call(rbind, lapply(files, function(i) read_csv(i, show_col_types=F)))
+
+# apply PCA model
+pca = predict(pca_model, pca)
+
+# analyse ecosystem separability ----
+#-----------------------------------------------------------------------------#
+
+separation = list()
+
+for (r in 1:niter) {
+
+  tmp = do.call(rbind, lapply(unique(obs$group), function(g) {
+
+    ind = which(obs$group == g)
+
+    si = unlist(lapply(unique(obs$cid), function(e) {
+      i = ind[which(obs$cid[ind] == e)]
+      sample(i, 100, prob=obs$weight[i])}))
+
+    # calculate Davies-Bouldin's index
+    o = index.DB(pca[si,], obs$cid[si], centrotypes="centroids", p=2, q=1)$DB
+
+    # return data.frame
+    return(data.frame(n=length(ind), db=o, group=g, iteration=r))
+
+  }))
+
+  separation[[r]] = tmp
+  rm(tmp)
+  print(r)
+
+}
+
+sds = do.call(rbind, separation)
+write_csv(sds, file.path(o_path, "separability_analysis.csv"))
+
+# return mean/sd for each scenario
+stats = ddply(sds, .(group), summarize, mean=mean(db), sd=sd(db))
+```

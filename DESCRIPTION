@@ -21,5 +21,7 @@ Imports: optparse, taxize, readr, rgbif, yaml, DBI, ddply,
 Roxygen: list(markdown = TRUE)
 Depends:
     R (>= 4.3)
-Suggests: knitr
-VignetteBuilder: knitr
+Suggests: 
+    knitr,
+    quarto
+VignetteBuilder: quarto
