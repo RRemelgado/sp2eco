@@ -1,0 +1,50 @@
+---
+
+ # credentials to access GBIF data
+ gbif:
+  user: "rremelgado"
+  pwd: "*279shevTR"
+  col: ["taxonKey","species","decimalLongitude","decimalLatitude",
+  "year","countryCode","coordinateUncertaintyInMeters",
+  "issue","basisOfRecord"] # target columns
+  chunk_size: 100000 # lines ocunt to read at once when processing GBIF data
+
+ # species observation database
+ observation_db: 00_data/spObs-database_20000000-2020000_NA.sqlite
+
+ # spatial resolution at which to derive samples
+ resolution: 0.00027777778
+
+ # processing geographical extent
+ extent: [-180,180,-90,90] # min x, max x, min y, max y
+
+ # map with UN regions (used for statistics)
+ regions:
+  map: 00_data/un_regions_2deg.tif
+  info: 00_data/un_regions_2deg.csv
+
+ # map with the area of each pixel (same resolution of range maps)
+ pixel_area: 00_data/map_area_2deg.tif
+
+ # elevation data used to filter samples
+ elevation: 00_data/MERIT_DEM/MERIT_DEM-elevationMean_20000000-20110000_300m.tif
+
+ # excludes samples with large GPS errors (minimizes computing time)
+ max_error: 30 # in meters
+
+ # paths to range map data (needed to clean samples)
+ range_maps:
+  ANIMALIA: 00_data/rangeMap/rangeMap-animalia_20220000_2deg.sqlite
+  PLANTAE: 00_data/rangeMap/rangeMap-plantae_20220000_2deg.sqlite
+  FUNGI: 00_data/rangeMap/rangeMap-fungi_20220000_2deg.sqlite
+  CHROMISTA: 00_data/rangeMap/rangeMap-chromista_20220000_2deg.sqlite
+  resolution: 2 # in degrees
+  # seasonality categories (labels used in habitat assessments, and codes used in range maps)
+  season: [["NA",[1,2,3]], ["resident",1], ["breeding",2], ["non-breeding",3]]
+
+ # configuration data
+ info:
+  habitats: 00_data/info/iucn_habitats.csv # species habitat requirements
+  elevation_ranges: 00_data/info/iucn_elevation_ranges.csv # per-species elevational ranges
+  ecosystem_info: 00_data/info/ecosystem_info.csv # ecosystem types and land cover links
+  taxonomy: 00_data/info/iucn_taxonomy.csv # species taxonomies
