@@ -41,11 +41,25 @@ To better ilustrate the application of our framework and its functionalities, we
 The code below performs these steps for you. The only thing you require is to change *working_directory* to a location in your system. Note that the code downloads a file zip-file from Zenodo. This file contains a standardized folder structure that includes example data and a vigette with a practical example that is deployed automatically. 
 
 ```r
+# set working directory
+setwd("working directory")
+
 # Install prerequisites if needed
 if (!requireNamespace("remotes", quietly = TRUE)) install.packages("remotes")
+if (!requireNamespace("rmarkdown", quietly = TRUE)) install.packages("rmarkdown")
 
 # Install package along with the reproducible vignette
-remotes::install_github("your-username/your-repo-name", build_vignettes = TRUE)
+remotes::install_github("RRemelgado/sp2eco")
+
+# download example data
+download.file("https://zenodo.org/records/18567004/files/example_data.zip", "example_data.zip", mode="wb")
+unzip("example_data.zip")
+
+# make copy of notebook
+file.copy(system.file("workflow", "example_workflow.Rmd", package = "sp2eco"), "example_workflow.Rmd")
+
+# render and launch html
+utils::browseURL(rmarkdown::render(iname, output_format = "html_document"))
 ```
 
 ## 3. How does our framework support GBIF and its mission?
